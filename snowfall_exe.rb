@@ -9,59 +9,11 @@ require 'chatterbot/dsl'
 require "rmagick"
 include Magick
 
-FRAMES = 30
+FRAMES = 20
 FLAKES = ["1.png", "2.png", "3.png"]
 
-MIN_FLAKES = 50
-MAX_FLAKES = 100
-
-def save_to_tempfile(url, ext)
-  url = "#{url}:small"
-  url = url.gsub(/^http:/, "https:")
-
-  uri = URI.parse(url)
-
-  dest = File.join "/tmp", Dir::Tmpname.make_tmpname(['snow', ext], nil)
-
-  puts "#{url} -> #{dest}"
-
-  open(dest, 'wb') do |file|
-    file << open(url).read
-  end
-  dest
-end
-
-
-
-use_streaming true
-
-home_timeline do |tweet|
-  next if tweet.retweeted_status? || tweet.text !~ /snowfall_exe/i || ! tweet.media?
-
-  puts tweet.media.first.attrs.inspect
-  source = tweet.media.first.media_url
-
-  f = save_to_tempfile(source, File.extname(tweet.media.first.media_url))
-  puts f    
-
-  dest = make_it_snow(f)
-
-  puts "tweet #{dest} to user"
-  
-  target = tweet_user(tweet)
-  response = "snow!"
-  begin
-    client.update_with_media(
-      "#{target} #{response}",
-      File.open(dest),
-      in_reply_to_status_id:tweet.id
-    )
-  rescue StandardError => e
-    puts e.inspect
-  end
-  puts "done!"
-end
-
+MIN_FLAKES = 40
+MAX_FLAKES = 80
 
 
 class Flake
@@ -126,6 +78,58 @@ def make_it_snow(src)
   dest
 end
 
-#if __FILE__ == $0
-#  puts make_it_snow("flea.png")
-#end
+def save_to_tempfile(url, ext)
+  url = "#{url}:small"
+  url = url.gsub(/^http:/, "https:")
+
+  uri = URI.parse(url)
+
+  dest = File.join "/tmp", Dir::Tmpname.make_tmpname(['snow', ext], nil)
+
+  puts "#{url} -> #{dest}"
+
+  open(dest, 'wb') do |file|
+    file << open(url).read
+  end
+  dest
+end
+
+
+
+use_streaming true
+
+followed do |user|
+  follow user
+end
+
+home_timeline do |tweet|
+  next if tweet.retweeted_status? || tweet.text !~ /snowfall_exe/i || ! tweet.media?
+
+  puts tweet.media.first.attrs.inspect
+  source = tweet.media.first.media_url
+
+  f = save_to_tempfile(source, File.extname(tweet.media.first.media_url))
+  puts f    
+
+  dest = make_it_snow(f)
+
+  puts "tweet #{dest} to user"
+  
+  target = tweet_user(tweet)
+  response = "snow!"
+  begin
+    client.update_with_media(
+      "#{target} #{response}",
+      File.open(dest),
+      in_reply_to_status_id:tweet.id
+    )
+  rescue StandardError => e
+    puts e.inspect
+    client.update(
+      "#{target} sorry, I had some trouble with that picture.",
+      in_reply_to_status_id:tweet.id
+    )
+  end
+end
+
+
